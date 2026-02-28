@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Database (evita di caricare i dati reali)
+*.db
+*.sqlite3
+
+# VirtualBox (I FILE GIGANTI)
+*.vdi
+*.vbox
+*.vbox-prev
+*.vbox-temp
+*.vmdk
+*.sav
+
+# Windows
+Thumbs.db
+desktop.ini

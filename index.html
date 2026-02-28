@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VulnShop — Intentionally Vulnerable Web App</title>
+  <meta name="description" content="A fully functional e-commerce web app packed with 12 intentional vulnerabilities for security training. Inspired by OWASP Juice Shop.">
+  <meta property="og:title" content="VulnShop — Hack the Market">
+  <meta property="og:description" content="12 vulnerabilities. 1250 points. OWASP Top 10 training lab built with Flask.">
+  <meta property="og:type" content="website">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    /* ══════════════════════════════════════════
+       RESET & ROOT
+    ══════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    :root {
+      --bg:       #04080d;
+      --bg2:      #080f1a;
+      --bg3:      #0c1525;
+      --border:   #152a45;
+      --border2:  #0a1e36;
+      --cyan:     #00e5ff;
+      --red:      #ff1744;
+      --green:    #39ff14;
+      --yellow:   #ffd600;
+      --purple:   #d500f9;
+      --text:     #b8cfe0;
+      --dim:      #3a5a7a;
+      --bright:   #e8f4ff;
+      --mono:     'Share Tech Mono', monospace;
+      --sans:     'Rajdhani', sans-serif;
+      --display:  'Orbitron', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      overflow-x: hidden;
+      cursor: none;
+    }
+
+    /* custom cursor */
+    .cursor {
+      width: 12px; height: 12px;
+      background: var(--cyan);
+      border-radius: 50%;
+      position: fixed;
+      top: 0; left: 0;
+      pointer-events: none;
+      z-index: 9999;
+      transition: transform 0.1s, opacity 0.2s;
+      mix-blend-mode: screen;
+    }
+    .cursor-ring {
+      width: 36px; height: 36px;
+      border: 1px solid rgba(0,229,255,0.4);
+      border-radius: 50%;
+      position: fixed;
+      top: 0; left: 0;
+      pointer-events: none;
+      z-index: 9998;
+      transition: transform 0.12s ease, width 0.2s, height 0.2s, border-color 0.2s;
+    }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--cyan); }
+
+    /* ══════════════════════════════════════════
+       SCANLINES + NOISE
+    ══════════════════════════════════════════ */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(
+        to bottom, transparent 0, transparent 3px,
+        rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px
+      );
+      pointer-events: none;
+      z-index: 9000;
+    }
+
+    /* ══════════════════════════════════════════
+       MATRIX CANVAS BACKGROUND
+    ══════════════════════════════════════════ */
+    #matrix-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      opacity: 0.04;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ══════════════════════════════════════════
+       NAV
+    ══════════════════════════════════════════ */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0;
+      z-index: 100;
+      height: 58px;
+      background: rgba(4,8,13,0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 3rem;
+    }
+
+    .nav-logo {
+      font-family: var(--display);
+      font-size: 1.05rem;
+      font-weight: 900;
+      color: var(--bright);
+      letter-spacing: 0.12em;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+    .nav-logo .skull { font-size: 1.3rem; }
+    .nav-logo .accent { color: var(--cyan); }
+
+    .nav-links {
+      display: flex;
+      gap: 0.2rem;
+      list-style: none;
+    }
+    .nav-links a {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--dim);
+      text-decoration: none;
+      padding: 0.35rem 0.7rem;
+      border: 1px solid transparent;
+      border-radius: 2px;
+      transition: all 0.2s;
+      letter-spacing: 0.05em;
+    }
+    .nav-links a:hover {
+      color: var(--cyan);
+      border-color: var(--border);
+      background: rgba(0,229,255,0.04);
+    }
+    .nav-cta {
+      font-family: var(--display) !important;
+      font-size: 0.65rem !important;
+      font-weight: 700 !important;
+      color: var(--bg) !important;
+      background: var(--cyan) !important;
+      border-color: var(--cyan) !important;
+      letter-spacing: 0.08em !important;
+    }
+    .nav-cta:hover {
+      background: transparent !important;
+      color: var(--cyan) !important;
+    }
+
+    /* ══════════════════════════════════════════
+       HERO
+    ══════════════════════════════════════════ */
+    #hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      padding: 6rem 3rem 4rem;
+      z-index: 1;
+      overflow: hidden;
+    }
+
+    /* grid overlay */
+    #hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,0.025) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+    }
+
+    /* glow orbs */
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      animation: orbFloat 8s ease-in-out infinite alternate;
+    }
+    .orb-1 { width:500px; height:500px; background:rgba(0,229,255,0.06); top:-100px; right:-80px; }
+    .orb-2 { width:400px; height:400px; background:rgba(255,23,68,0.05); bottom:-80px; left:10%; animation-delay:-4s; }
+    .orb-3 { width:300px; height:300px; background:rgba(213,0,249,0.04); top:40%; right:25%; animation-delay:-2s; }
+
+    .hero-inner {
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: center;
+    }
+
+    .hero-label {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--cyan);
+      letter-spacing: 0.3em;
+      margin-bottom: 1.2rem;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.2s forwards;
+    }
+
+    .hero-title {
+      font-family: var(--display);
+      font-size: clamp(3rem, 5.5vw, 5.5rem);
+      font-weight: 900;
+      line-height: 0.95;
+      color: var(--bright);
+      letter-spacing: -0.02em;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.35s forwards;
+    }
+    .hero-title .line-accent { color: var(--cyan); display: block; }
+    .hero-title .line-red    { color: var(--red);  display: block; font-size: 0.5em; font-weight: 400; letter-spacing: 0.15em; margin-top: 0.5rem; font-family: var(--mono); }
+
+    .hero-sub {
+      margin-top: 1.8rem;
+      color: var(--dim);
+      font-size: 1.05rem;
+      line-height: 1.7;
+      max-width: 480px;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.5s forwards;
+    }
+    .hero-sub strong { color: var(--text); font-weight: 600; }
+
+    .hero-badges {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 1.8rem;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.65s forwards;
+    }
+    .badge {
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 2px;
+      letter-spacing: 0.1em;
+      border: 1px solid;
+    }
+    .b-cyan   { color: var(--cyan);   border-color: rgba(0,229,255,0.3);   background: rgba(0,229,255,0.06); }
+    .b-red    { color: var(--red);    border-color: rgba(255,23,68,0.3);    background: rgba(255,23,68,0.06); }
+    .b-green  { color: var(--green);  border-color: rgba(57,255,20,0.3);    background: rgba(57,255,20,0.06); }
+    .b-purple { color: var(--purple); border-color: rgba(213,0,249,0.3);    background: rgba(213,0,249,0.06); }
+    .b-yellow { color: var(--yellow); border-color: rgba(255,214,0,0.3);    background: rgba(255,214,0,0.06); }
+
+    .hero-actions {
+      display: flex;
+      gap: 1rem;
+      margin-top: 2.5rem;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.8s forwards;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.8rem;
+      font-family: var(--display);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-decoration: none;
+      border-radius: 3px;
+      border: 1px solid transparent;
+      cursor: none;
+      transition: all 0.25s;
+    }
+    .btn-primary {
+      background: var(--cyan);
+      color: var(--bg);
+      border-color: var(--cyan);
+    }
+    .btn-primary:hover {
+      background: transparent;
+      color: var(--cyan);
+      box-shadow: 0 0 30px rgba(0,229,255,0.35);
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text);
+      border-color: var(--border);
+    }
+    .btn-ghost:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+
+    .hero-stats {
+      display: flex;
+      gap: 2.5rem;
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border2);
+      opacity: 0;
+      animation: fadeUp 0.7s 0.95s forwards;
+    }
+    .stat-n {
+      font-family: var(--display);
+      font-size: 2.2rem;
+      font-weight: 900;
+      color: var(--cyan);
+      line-height: 1;
+      display: block;
+    }
+    .stat-l {
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      color: var(--dim);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-top: 0.3rem;
+      display: block;
+    }
+
+    /* ─── Terminal panel ─── */
+    .hero-terminal {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.5s forwards;
+      box-shadow: 0 0 60px rgba(0,229,255,0.08);
+    }
+    .term-bar {
+      background: var(--bg3);
+      border-bottom: 1px solid var(--border);
+      padding: 0.7rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .term-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+    }
+    .td-red    { background: #ff5f57; }
+    .td-yellow { background: #febc2e; }
+    .td-green  { background: #28c840; }
+    .term-title {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--dim);
+      margin-left: 0.5rem;
+      letter-spacing: 0.1em;
+    }
+    .term-body {
+      padding: 1.5rem;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      line-height: 1.9;
+    }
+    .t-prompt { color: var(--green); }
+    .t-cmd    { color: var(--bright); }
+    .t-comment{ color: var(--dim); }
+    .t-output { color: var(--cyan); }
+    .t-warn   { color: var(--yellow); }
+    .t-err    { color: var(--red); }
+    .t-flag   { color: var(--purple); font-weight: bold; }
+    .t-cursor {
+      display: inline-block;
+      width: 8px; height: 1em;
+      background: var(--cyan);
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+
+    /* ══════════════════════════════════════════
+       TICKER
+    ══════════════════════════════════════════ */
+    .ticker-wrap {
+      position: relative;
+      z-index: 1;
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 0.65rem 0;
+      overflow: hidden;
+    }
+    .ticker {
+      display: flex;
+      width: max-content;
+      animation: ticker 35s linear infinite;
+      gap: 3rem;
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+    }
+    .ticker span:nth-child(odd)  { color: var(--red); }
+    .ticker span:nth-child(even) { color: var(--dim); }
+
+    /* ══════════════════════════════════════════
+       SECTIONS SHARED
+    ══════════════════════════════════════════ */
+    section {
+      position: relative;
+      z-index: 1;
+    }
+    .section-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 6rem 3rem;
+    }
+    .sec-eyebrow {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--cyan);
+      letter-spacing: 0.3em;
+      margin-bottom: 0.8rem;
+    }
+    .sec-title {
+      font-family: var(--display);
+      font-size: clamp(1.8rem, 3vw, 2.8rem);
+      font-weight: 700;
+      color: var(--bright);
+      line-height: 1.1;
+      margin-bottom: 1rem;
+    }
+    .sec-sub {
+      color: var(--dim);
+      font-size: 1rem;
+      max-width: 600px;
+      margin-bottom: 3.5rem;
+      line-height: 1.7;
+    }
+
+    /* ══════════════════════════════════════════
+       VULNERABILITIES GRID
+    ══════════════════════════════════════════ */
+    #vulns { background: var(--bg); }
+    .vulns-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border2);
+      border: 1px solid var(--border2);
+    }
+    .vuln-card {
+      background: var(--bg);
+      padding: 1.8rem;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.25s;
+      cursor: none;
+    }
+    .vuln-card:hover { background: var(--bg2); }
+    .vuln-card::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.3s;
+    }
+    .vuln-card:hover::after { transform: scaleX(1); }
+
+    .vc-1::after { background: var(--cyan); }
+    .vc-2::after, .vc-3::after, .vc-11::after { background: var(--red); }
+    .vc-4::after, .vc-5::after { background: var(--yellow); }
+    .vc-6::after { background: var(--purple); }
+    .vc-7::after, .vc-8::after, .vc-9::after { background: var(--green); }
+    .vc-10::after, .vc-12::after { background: var(--cyan); }
+
+    .vuln-num {
+      font-family: var(--display);
+      font-size: 0.6rem;
+      color: var(--dim);
+      letter-spacing: 0.2em;
+      margin-bottom: 0.8rem;
+    }
+    .vuln-icon { font-size: 2rem; margin-bottom: 0.8rem; display: block; }
+    .vuln-name {
+      font-family: var(--sans);
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--bright);
+      margin-bottom: 0.5rem;
+    }
+    .vuln-where {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--cyan);
+      margin-bottom: 0.6rem;
+    }
+    .vuln-desc {
+      font-size: 0.82rem;
+      color: var(--dim);
+      line-height: 1.5;
+      margin-bottom: 1rem;
+    }
+    .vuln-pts {
+      position: absolute;
+      top: 1.5rem; right: 1.5rem;
+      font-family: var(--display);
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--green);
+    }
+    .vuln-payload {
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      color: var(--dim);
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      padding: 0.4rem 0.6rem;
+      border-radius: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ══════════════════════════════════════════
+       OWASP COVERAGE
+    ══════════════════════════════════════════ */
+    #owasp { background: var(--bg2); border-top: 1px solid var(--border2); border-bottom: 1px solid var(--border2); }
+    .owasp-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 1rem;
+    }
+    .owasp-item {
+      background: var(--bg);
+      border: 1px solid var(--border2);
+      border-left: 3px solid;
+      padding: 1.2rem 1rem;
+    }
+    .owasp-item:nth-child(1)  { border-left-color: var(--red); }
+    .owasp-item:nth-child(2)  { border-left-color: var(--cyan); }
+    .owasp-item:nth-child(3)  { border-left-color: var(--yellow); }
+    .owasp-item:nth-child(4)  { border-left-color: var(--purple); }
+    .owasp-item:nth-child(5)  { border-left-color: var(--green); }
+    .owasp-id { font-family: var(--mono); font-size: 0.58rem; color: var(--dim); margin-bottom: 0.4rem; }
+    .owasp-name { font-size: 0.82rem; font-weight: 700; color: var(--bright); margin-bottom: 0.3rem; }
+    .owasp-ex { font-family: var(--mono); font-size: 0.62rem; color: var(--dim); }
+
+    /* ══════════════════════════════════════════
+       INSTALL SECTION
+    ══════════════════════════════════════════ */
+    #install { background: var(--bg); }
+    .install-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: start;
+    }
+    .install-steps { display: flex; flex-direction: column; gap: 1.5rem; }
+    .step {
+      display: flex;
+      gap: 1.2rem;
+      align-items: flex-start;
+    }
+    .step-n {
+      flex-shrink: 0;
+      width: 32px; height: 32px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--display);
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--cyan);
+    }
+    .step-body {}
+    .step-title { font-weight: 700; color: var(--bright); margin-bottom: 0.3rem; }
+    .step-desc  { font-family: var(--mono); font-size: 0.7rem; color: var(--dim); }
+    .code-block {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .code-block-bar {
+      background: var(--bg3);
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 1rem;
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      color: var(--dim);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .copy-btn {
+      font-family: var(--mono);
+      font-size: 0.58rem;
+      color: var(--cyan);
+      background: none;
+      border: 1px solid rgba(0,229,255,0.2);
+      padding: 0.2rem 0.5rem;
+      border-radius: 2px;
+      cursor: none;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover { background: rgba(0,229,255,0.08); }
+    .code-block pre {
+      padding: 1.4rem;
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      line-height: 1.9;
+      color: var(--text);
+      overflow-x: auto;
+    }
+    .c-g { color: var(--green); }
+    .c-c { color: var(--cyan); }
+    .c-d { color: var(--dim); }
+    .c-w { color: var(--yellow); }
+    .c-r { color: var(--red); }
+
+    /* creds table */
+    .creds-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      margin-top: 2rem;
+    }
+    .creds-table th {
+      background: var(--bg3);
+      color: var(--cyan);
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      padding: 0.7rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .creds-table td {
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid var(--border2);
+      color: var(--text);
+    }
+    .creds-table tr:hover td { background: rgba(0,229,255,0.02); }
+    .role-admin { color: var(--red); }
+    .role-user  { color: var(--cyan); }
+
+    /* ══════════════════════════════════════════
+       STRUCTURE
+    ══════════════════════════════════════════ */
+    #structure { background: var(--bg2); border-top: 1px solid var(--border2); }
+    .struct-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: start;
+    }
+    .file-tree {
+      font-family: var(--mono);
+      font-size: 0.73rem;
+      line-height: 2;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 1.5rem;
+      border-radius: 4px;
+    }
+    .ft-dir   { color: var(--cyan); }
+    .ft-file  { color: var(--text); }
+    .ft-vuln  { color: var(--red); }
+    .ft-note  { color: var(--dim); font-size: 0.62rem; }
+
+    .feature-list { display: flex; flex-direction: column; gap: 1.2rem; }
+    .feature-item {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      padding: 1rem 1.2rem;
+      background: var(--bg);
+      border: 1px solid var(--border2);
+      border-left: 3px solid var(--cyan);
+      border-radius: 0 3px 3px 0;
+    }
+    .fi-icon  { font-size: 1.4rem; flex-shrink: 0; }
+    .fi-title { font-weight: 700; color: var(--bright); margin-bottom: 0.2rem; font-size: 0.9rem; }
+    .fi-desc  { font-size: 0.8rem; color: var(--dim); }
+
+    /* ══════════════════════════════════════════
+       CTA
+    ══════════════════════════════════════════ */
+    #cta {
+      background: var(--bg);
+      border-top: 1px solid var(--border2);
+      text-align: center;
+    }
+    .cta-inner { padding: 7rem 3rem; }
+    .cta-title {
+      font-family: var(--display);
+      font-size: clamp(2.5rem, 5vw, 4.5rem);
+      font-weight: 900;
+      color: var(--bright);
+      line-height: 1;
+      margin-bottom: 1.5rem;
+    }
+    .cta-title span { color: var(--cyan); }
+    .cta-sub {
+      color: var(--dim);
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      margin-bottom: 2.5rem;
+      letter-spacing: 0.05em;
+    }
+    .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn-lg {
+      padding: 1rem 2.5rem !important;
+      font-size: 0.82rem !important;
+    }
+
+    /* ══════════════════════════════════════════
+       FOOTER
+    ══════════════════════════════════════════ */
+    footer {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      padding: 2rem 3rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--dim);
+      position: relative;
+      z-index: 1;
+    }
+    footer a { color: var(--cyan); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    .footer-vulns { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .fv { color: var(--red); background: rgba(255,23,68,0.08); border: 1px solid rgba(255,23,68,0.15); padding: 0.15rem 0.4rem; border-radius: 2px; font-size: 0.58rem; }
+
+    /* ══════════════════════════════════════════
+       ANIMATIONS
+    ══════════════════════════════════════════ */
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(24px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    @keyframes orbFloat {
+      from { transform: translateY(0) scale(1); }
+      to   { transform: translateY(-40px) scale(1.05); }
+    }
+    @keyframes ticker {
+      from { transform:translateX(0); }
+      to   { transform:translateX(-50%); }
+    }
+    @keyframes blink {
+      0%,100%{ opacity:1; } 50%{ opacity:0; }
+    }
+    @keyframes glitchH {
+      0%,100%{ clip-path:inset(80% 0 10% 0); transform:translate(-4px,0); }
+      20%     { clip-path:inset(10% 0 60% 0); transform:translate(4px,0); }
+      40%     { clip-path:inset(40% 0 30% 0); transform:translate(-4px,0); }
+      60%     { clip-path:inset(70% 0 5% 0);  transform:translate(4px,0); }
+      80%     { clip-path:inset(20% 0 70% 0); transform:translate(-4px,0); }
+    }
+
+    .glitch-text {
+      position: relative;
+    }
+    .glitch-text::before,
+    .glitch-text::after {
+      content: attr(data-text);
+      position: absolute;
+      top: 0; left: 0;
+      opacity: 0.7;
+    }
+    .glitch-text::before {
+      color: var(--red);
+      animation: glitchH 4s 2s infinite;
+    }
+    .glitch-text::after {
+      color: var(--cyan);
+      animation: glitchH 4s 2.5s infinite;
+    }
+
+    /* scroll reveal */
+    .reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ══════════════════════════════════════════
+       RESPONSIVE
+    ══════════════════════════════════════════ */
+    @media (max-width: 900px) {
+      .hero-inner { grid-template-columns: 1fr; }
+      .hero-terminal { display: none; }
+      .vulns-grid { grid-template-columns: 1fr 1fr; }
+      .owasp-row { grid-template-columns: 1fr 1fr; }
+      .install-grid, .struct-grid { grid-template-columns: 1fr; }
+      nav { padding: 0 1.5rem; }
+      .nav-links { display: none; }
+      .section-inner { padding: 4rem 1.5rem; }
+    }
+    @media (max-width: 580px) {
+      .vulns-grid { grid-template-columns: 1fr; }
+      .owasp-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Custom cursor -->
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursor-ring"></div>
+
+<!-- Matrix rain -->
+<canvas id="matrix-canvas"></canvas>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="nav-logo">
+    <span class="skull">☠</span>
+    VULN<span class="accent">SHOP</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#vulns">// VULNS</a></li>
+    <li><a href="#owasp">// OWASP</a></li>
+    <li><a href="#install">// INSTALL</a></li>
+    <li><a href="#structure">// STRUCTURE</a></li>
+    <li><a href="https://github.com/YOUR_USERNAME/vulnshop" target="_blank" class="nav-cta">⭐ GITHUB</a></li>
+  </ul>
+</nav>
+
+<!-- ════════════════ HERO ════════════════ -->
+<section id="hero">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div class="hero-inner">
+    <div class="hero-left">
+      <div class="hero-label">[ OWASP TOP 10 — SECURITY TRAINING LAB ]</div>
+      <h1 class="hero-title glitch-text" data-text="HACK THE MARKET">
+        HACK THE
+        <span class="line-accent">MARKET</span>
+        <span class="line-red">⚠ INTENTIONALLY VULNERABLE</span>
+      </h1>
+
+      <p class="hero-sub">
+        A <strong>fully functional e-commerce platform</strong> packed with
+        <strong>12 real vulnerabilities</strong> based on the OWASP Top 10.
+        Find the flaws, exploit them, capture the flags. Built with Flask + SQLite.
+      </p>
+
+      <div class="hero-badges">
+        <span class="badge b-red">SQL INJECTION</span>
+        <span class="badge b-yellow">STORED XSS</span>
+        <span class="badge b-cyan">IDOR</span>
+        <span class="badge b-purple">MASS ASSIGNMENT</span>
+        <span class="badge b-green">PATH TRAVERSAL</span>
+        <span class="badge b-yellow">BROKEN AUTH</span>
+        <span class="badge b-red">OPEN REDIRECT</span>
+        <span class="badge b-cyan">DEBUG ENDPOINT</span>
+      </div>
+
+      <div class="hero-actions">
+        <a href="https://github.com/YOUR_USERNAME/vulnshop" target="_blank" class="btn btn-primary">
+          ⭐ STAR ON GITHUB
+        </a>
+        <a href="#install" class="btn btn-ghost">⬇ QUICK INSTALL</a>
+      </div>
+
+      <div class="hero-stats">
+        <div><span class="stat-n">12</span><span class="stat-l">Vulnerabilities</span></div>
+        <div><span class="stat-n">1250</span><span class="stat-l">CTF Points</span></div>
+        <div><span class="stat-n">8</span><span class="stat-l">OWASP Top 10</span></div>
+        <div><span class="stat-n">Python</span><span class="stat-l">Flask + SQLite</span></div>
+      </div>
+    </div>
+
+    <div class="hero-terminal">
+      <div class="term-bar">
+        <span class="term-dot td-red"></span>
+        <span class="term-dot td-yellow"></span>
+        <span class="term-dot td-green"></span>
+        <span class="term-title">vulnshop — bash — 80×24</span>
+      </div>
+      <div class="term-body" id="terminal-body">
+        <div><span class="t-comment"># Clone & run VulnShop</span></div>
+        <div><span class="t-prompt">$</span> <span class="t-cmd">git clone github.com/YOU/vulnshop</span></div>
+        <div><span class="t-prompt">$</span> <span class="t-cmd">cd vulnshop && pip install -r requirements.txt</span></div>
+        <div><span class="t-prompt">$</span> <span class="t-cmd">python app.py</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-output">🔓 VulnShop started on :5000</span></div>
+        <div><span class="t-warn">⚠  FOR EDUCATIONAL USE ONLY</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-comment"># Challenge 1 — SQL Injection bypass</span></div>
+        <div><span class="t-prompt">$</span> <span class="t-cmd">curl -d "username=admin'--&amp;password=x" /login</span></div>
+        <div><span class="t-output">✓ Logged in as admin!</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-comment"># Challenge 2 — Dump all users</span></div>
+        <div><span class="t-prompt">$</span> <span class="t-cmd">curl "/products?q=' UNION SELECT...</span></div>
+        <div><span class="t-flag">FLAG{sql_injection_works} ← found!</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-prompt">$</span> <span class="t-cursor"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ TICKER ════════════════ -->
+<div class="ticker-wrap">
+  <div class="ticker">
+    <span>A01 BROKEN ACCESS CONTROL</span><span>///</span>
+    <span>A02 CRYPTOGRAPHIC FAILURES</span><span>///</span>
+    <span>A03 INJECTION</span><span>///</span>
+    <span>A05 SECURITY MISCONFIGURATION</span><span>///</span>
+    <span>A07 IDENTIFICATION FAILURES</span><span>///</span>
+    <span>A09 SECURITY LOGGING FAILURES</span><span>///</span>
+    <span>XSS • SQLI • IDOR • PATH TRAVERSAL • CSRF • SSRF</span><span>///</span>
+    <span>A01 BROKEN ACCESS CONTROL</span><span>///</span>
+    <span>A02 CRYPTOGRAPHIC FAILURES</span><span>///</span>
+    <span>A03 INJECTION</span><span>///</span>
+    <span>A05 SECURITY MISCONFIGURATION</span><span>///</span>
+    <span>A07 IDENTIFICATION FAILURES</span><span>///</span>
+    <span>A09 SECURITY LOGGING FAILURES</span><span>///</span>
+    <span>XSS • SQLI • IDOR • PATH TRAVERSAL • CSRF • SSRF</span><span>///</span>
+  </div>
+</div>
+
+<!-- ════════════════ VULNS ════════════════ -->
+<section id="vulns">
+  <div class="section-inner">
+    <div class="sec-eyebrow reveal">[ CHALLENGE BOARD ]</div>
+    <h2 class="sec-title reveal">12 Intentional<br>Vulnerabilities</h2>
+    <p class="sec-sub reveal">Each vulnerability is labeled in the source code, visible in the UI, and exploitable with basic tools. Perfect for beginners and CTF practice.</p>
+
+    <div class="vulns-grid reveal">
+
+      <div class="vuln-card vc-1">
+        <div class="vuln-pts">100pt</div>
+        <span class="vuln-icon">💉</span>
+        <div class="vuln-num">CHALLENGE #01 — A03</div>
+        <div class="vuln-name">SQL Injection — Login</div>
+        <div class="vuln-where">/login POST</div>
+        <div class="vuln-desc">Username field is concatenated directly into SQL query. Classic bypass.</div>
+        <div class="vuln-payload">admin' --</div>
+      </div>
+
+      <div class="vuln-card vc-2">
+        <div class="vuln-pts">150pt</div>
+        <span class="vuln-icon">🔍</span>
+        <div class="vuln-num">CHALLENGE #02 — A03</div>
+        <div class="vuln-name">SQL Injection — Search</div>
+        <div class="vuln-where">/products?q=</div>
+        <div class="vuln-desc">Product search uses raw string interpolation. UNION-based data exfiltration possible.</div>
+        <div class="vuln-payload">' UNION SELECT 1,username,password,4,5,6,7,8 FROM users--</div>
+      </div>
+
+      <div class="vuln-card vc-11">
+        <div class="vuln-pts">125pt</div>
+        <span class="vuln-icon">🎫</span>
+        <div class="vuln-num">CHALLENGE #11 — A03</div>
+        <div class="vuln-name">SQL Injection — Coupon</div>
+        <div class="vuln-where">Cart checkout</div>
+        <div class="vuln-desc">Coupon code checked via unsanitized SQL. Always-true condition gives 100% discount.</div>
+        <div class="vuln-payload">' OR 1=1 --</div>
+      </div>
+
+      <div class="vuln-card vc-4">
+        <div class="vuln-pts">100pt</div>
+        <span class="vuln-icon">📝</span>
+        <div class="vuln-num">CHALLENGE #03 — A03</div>
+        <div class="vuln-name">Stored XSS</div>
+        <div class="vuln-where">/product/:id — reviews</div>
+        <div class="vuln-desc">Review content rendered with |safe — stored scripts execute for every visitor.</div>
+        <div class="vuln-payload">&lt;script&gt;alert('XSS')&lt;/script&gt;</div>
+      </div>
+
+      <div class="vuln-card vc-5">
+        <div class="vuln-pts">100pt</div>
+        <span class="vuln-icon">🪞</span>
+        <div class="vuln-num">CHALLENGE #04 — A03</div>
+        <div class="vuln-name">Reflected XSS</div>
+        <div class="vuln-where">/admin/users?q=</div>
+        <div class="vuln-desc">Search query echoed unescaped in admin panel. Reflected into HTML immediately.</div>
+        <div class="vuln-payload">&lt;img src=x onerror=alert(document.cookie)&gt;</div>
+      </div>
+
+      <div class="vuln-card vc-6">
+        <div class="vuln-pts">75pt</div>
+        <span class="vuln-icon">👁</span>
+        <div class="vuln-num">CHALLENGE #05 — A01</div>
+        <div class="vuln-name">IDOR</div>
+        <div class="vuln-where">/profile/:id</div>
+        <div class="vuln-desc">Public profiles expose email, balance and address. No ownership check. Enumerate /profile/1.</div>
+        <div class="vuln-payload">/profile/1 → admin data</div>
+      </div>
+
+      <div class="vuln-card vc-2">
+        <div class="vuln-pts">200pt</div>
+        <span class="vuln-icon">⬆️</span>
+        <div class="vuln-num">CHALLENGE #06 — A01</div>
+        <div class="vuln-name">Mass Assignment</div>
+        <div class="vuln-where">/profile/update POST</div>
+        <div class="vuln-desc">Profile update accepts a role field — users can promote themselves to admin.</div>
+        <div class="vuln-payload">role=admin in POST body</div>
+      </div>
+
+      <div class="vuln-card vc-8">
+        <div class="vuln-pts">75pt</div>
+        <span class="vuln-icon">🔌</span>
+        <div class="vuln-num">CHALLENGE #07 — A02</div>
+        <div class="vuln-name">Sensitive Data Exposure</div>
+        <div class="vuln-where">/api/users</div>
+        <div class="vuln-desc">JSON API returns MD5 password hashes and plaintext credit cards with zero authentication.</div>
+        <div class="vuln-payload">GET /api/users → 200 OK</div>
+      </div>
+
+      <div class="vuln-card vc-9">
+        <div class="vuln-pts">50pt</div>
+        <span class="vuln-icon">🐛</span>
+        <div class="vuln-num">CHALLENGE #08 — A05</div>
+        <div class="vuln-name">Debug Endpoint</div>
+        <div class="vuln-where">/debug</div>
+        <div class="vuln-desc">Forgotten debug route leaks Flask secret key, session contents, and all env variables.</div>
+        <div class="vuln-payload">GET /debug → secret_key exposed</div>
+      </div>
+
+      <div class="vuln-card vc-9">
+        <div class="vuln-pts">150pt</div>
+        <span class="vuln-icon">📂</span>
+        <div class="vuln-num">CHALLENGE #09 — A01</div>
+        <div class="vuln-name">Path Traversal</div>
+        <div class="vuln-where">/download?file=</div>
+        <div class="vuln-desc">File parameter joined to static folder without sanitization — read any server file.</div>
+        <div class="vuln-payload">?file=../app.py</div>
+      </div>
+
+      <div class="vuln-card vc-10">
+        <div class="vuln-pts">125pt</div>
+        <span class="vuln-icon">🔑</span>
+        <div class="vuln-num">CHALLENGE #10 — A02</div>
+        <div class="vuln-name">Broken Auth — MD5</div>
+        <div class="vuln-where">/api/users + crackstation.net</div>
+        <div class="vuln-desc">Passwords stored as unsalted MD5. Hashes exposed in API. Crackable in seconds.</div>
+        <div class="vuln-payload">MD5("password") → 5f4dcc3...</div>
+      </div>
+
+      <div class="vuln-card vc-12">
+        <div class="vuln-pts">50pt</div>
+        <span class="vuln-icon">↪️</span>
+        <div class="vuln-num">CHALLENGE #12 — A07</div>
+        <div class="vuln-name">Open Redirect</div>
+        <div class="vuln-where">/login?next=</div>
+        <div class="vuln-desc">Login redirect follows any URL supplied in the next parameter. Phishing-ready.</div>
+        <div class="vuln-payload">?next=https://evil.com</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ OWASP ════════════════ -->
+<section id="owasp">
+  <div class="section-inner">
+    <div class="sec-eyebrow reveal">[ OWASP TOP 10 COVERAGE ]</div>
+    <h2 class="sec-title reveal">8 of 10 Categories Covered</h2>
+    <p class="sec-sub reveal">VulnShop maps each challenge directly to the OWASP Top 10 so you learn real-world classification alongside exploitation.</p>
+
+    <div class="owasp-row reveal">
+      <div class="owasp-item">
+        <div class="owasp-id">A01:2021</div>
+        <div class="owasp-name">Broken Access Control</div>
+        <div class="owasp-ex">IDOR • Mass Assignment • Admin bypass</div>
+      </div>
+      <div class="owasp-item">
+        <div class="owasp-id">A02:2021</div>
+        <div class="owasp-name">Cryptographic Failures</div>
+        <div class="owasp-ex">MD5 passwords • Plaintext CC in API</div>
+      </div>
+      <div class="owasp-item">
+        <div class="owasp-id">A03:2021</div>
+        <div class="owasp-name">Injection</div>
+        <div class="owasp-ex">SQLi login • search • coupon • XSS</div>
+      </div>
+      <div class="owasp-item">
+        <div class="owasp-id">A05:2021</div>
+        <div class="owasp-name">Security Misconfiguration</div>
+        <div class="owasp-ex">Debug endpoint • Error details leaked</div>
+      </div>
+      <div class="owasp-item">
+        <div class="owasp-id">A07:2021</div>
+        <div class="owasp-name">Auth &amp; Session Failures</div>
+        <div class="owasp-ex">Hardcoded key • Open redirect</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ INSTALL ════════════════ -->
+<section id="install">
+  <div class="section-inner">
+    <div class="sec-eyebrow reveal">[ SETUP GUIDE ]</div>
+    <h2 class="sec-title reveal">Up and Running<br>in 60 Seconds</h2>
+    <p class="sec-sub reveal">Zero configuration required. The SQLite database is created and seeded automatically on first run.</p>
+
+    <div class="install-grid">
+      <div>
+        <div class="code-block reveal">
+          <div class="code-block-bar">
+            <span>bash — quick start</span>
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+          </div>
+          <pre id="install-code"><span class="c-d"># 1. Clone the repository</span>
+<span class="c-g">git clone</span> https://github.com/YOUR/vulnshop
+<span class="c-g">cd</span> vulnshop
+
+<span class="c-d"># 2. (Optional) virtual environment</span>
+<span class="c-g">python -m venv</span> venv
+<span class="c-g">source</span> venv/bin/activate
+
+<span class="c-d"># 3. Install Flask</span>
+<span class="c-g">pip install</span> -r requirements.txt
+
+<span class="c-d"># 4. Launch</span>
+<span class="c-c">python app.py</span>
+
+<span class="c-d"># → Open http://127.0.0.1:5000</span></pre>
+        </div>
+
+        <table class="creds-table reveal" style="margin-top:2rem">
+          <thead>
+            <tr><th>USERNAME</th><th>PASSWORD</th><th>ROLE</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>admin</td><td>admin123</td><td class="role-admin">admin</td></tr>
+            <tr><td>alice</td><td>alice2024</td><td class="role-user">user</td></tr>
+            <tr><td>bob</td><td>password</td><td class="role-user">user</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="install-steps reveal">
+        <div class="step">
+          <div class="step-n">1</div>
+          <div class="step-body">
+            <div class="step-title">Clone the repo</div>
+            <div class="step-desc">git clone from GitHub, no build tools required</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-n">2</div>
+          <div class="step-body">
+            <div class="step-title">Install Flask</div>
+            <div class="step-desc">Single dependency — Flask 3.x, everything else is stdlib</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-n">3</div>
+          <div class="step-body">
+            <div class="step-title">python app.py</div>
+            <div class="step-desc">DB auto-seeded with 3 users, 8 products, coupons and flags</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-n">4</div>
+          <div class="step-body">
+            <div class="step-title">Open the scoreboard</div>
+            <div class="step-desc">Visit /scoreboard for all 12 challenges with hints and point values</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-n">5</div>
+          <div class="step-body">
+            <div class="step-title">Hack away</div>
+            <div class="step-desc">Flags are in FLAG{...} format. Use Burp Suite, curl, or browser DevTools</div>
+          </div>
+        </div>
+
+        <div style="margin-top:1.5rem;padding:1rem 1.2rem;background:rgba(255,23,68,0.06);border:1px solid rgba(255,23,68,0.2);font-family:var(--mono);font-size:0.7rem;color:var(--red);border-radius:3px">
+          ⚠ Run only on localhost or an isolated VM.<br>
+          Never expose this app to the internet.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ STRUCTURE ════════════════ -->
+<section id="structure">
+  <div class="section-inner">
+    <div class="sec-eyebrow reveal">[ PROJECT LAYOUT ]</div>
+    <h2 class="sec-title reveal">Clean, Readable,<br>Well Documented</h2>
+    <p class="sec-sub reveal">Every vulnerable line is marked with a <code style="color:var(--red)"># VULN:</code> comment so learners can find and understand each flaw immediately.</p>
+
+    <div class="struct-grid">
+      <div class="file-tree reveal">
+<span class="ft-dir">vulnshop/</span>
+├── <span class="ft-file">app.py</span>           <span class="ft-note">← all routes + # VULN: comments</span>
+├── <span class="ft-file">requirements.txt</span>
+├── <span class="ft-file">.gitignore</span>
+├── <span class="ft-file">LICENSE</span>
+├── <span class="ft-file">CONTRIBUTING.md</span>
+├── <span class="ft-dir">.github/workflows/</span>
+│   └── <span class="ft-file">ci.yml</span>       <span class="ft-note">← GitHub Actions CI</span>
+├── <span class="ft-dir">tests/</span>
+│   └── <span class="ft-file">test_app.py</span>  <span class="ft-note">← 12 pytest smoke tests</span>
+├── <span class="ft-dir">templates/</span>
+│   ├── <span class="ft-file">base.html</span>    <span class="ft-note">← navbar, scanlines, footer</span>
+│   ├── <span class="ft-vuln">login.html</span>   <span class="ft-note">← SQLi hint shown inline</span>
+│   ├── <span class="ft-vuln">product.html</span> <span class="ft-note">← stored XSS review form</span>
+│   ├── <span class="ft-vuln">profile.html</span> <span class="ft-note">← mass assignment demo</span>
+│   └── <span class="ft-file">scoreboard.html</span>
+└── <span class="ft-dir">static/</span>
+    └── <span class="ft-file">style.css</span>    <span class="ft-note">← cyberpunk dark theme</span>
+      </div>
+
+      <div class="feature-list reveal">
+        <div class="feature-item">
+          <span class="fi-icon">🏷️</span>
+          <div>
+            <div class="fi-title">Every vuln is labeled</div>
+            <div class="fi-desc">Each intentionally vulnerable line has a <code style="color:var(--red)"># VULN:</code> comment explaining why it's insecure.</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <span class="fi-icon">🎓</span>
+          <div>
+            <div class="fi-title">Hints shown in the UI</div>
+            <div class="fi-desc">The app itself shows payload examples and vulnerability markers — great for beginners learning to identify attack surfaces.</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <span class="fi-icon">🏆</span>
+          <div>
+            <div class="fi-title">Built-in CTF scoreboard</div>
+            <div class="fi-desc">12 challenges, 1250 total points. Flags in FLAG{...} format. Visit /scoreboard for the full list with hints.</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <span class="fi-icon">🔄</span>
+          <div>
+            <div class="fi-title">GitHub Actions CI</div>
+            <div class="fi-desc">Smoke tests run automatically on push across Python 3.10, 3.11 and 3.12. PRs tested before merge.</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <span class="fi-icon">🗄️</span>
+          <div>
+            <div class="fi-title">Zero-config SQLite</div>
+            <div class="fi-desc">Database auto-created and seeded on first run. No Postgres, no Docker, no setup scripts needed.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ CTA ════════════════ -->
+<section id="cta">
+  <div class="cta-inner">
+    <div class="sec-eyebrow reveal" style="text-align:center">[ GET STARTED ]</div>
+    <h2 class="cta-title reveal">
+      READY TO<br><span>HACK IT?</span>
+    </h2>
+    <p class="cta-sub reveal">
+      Star the repo → Clone → Run → Find all 12 flags
+    </p>
+    <div class="cta-buttons reveal">
+      <a href="https://github.com/YOUR_USERNAME/vulnshop" target="_blank" class="btn btn-primary btn-lg">
+        ⭐ STAR ON GITHUB
+      </a>
+      <a href="https://github.com/YOUR_USERNAME/vulnshop/archive/refs/heads/main.zip" class="btn btn-ghost btn-lg">
+        ⬇ DOWNLOAD ZIP
+      </a>
+      <a href="https://github.com/YOUR_USERNAME/vulnshop/blob/main/CONTRIBUTING.md" target="_blank" class="btn btn-ghost btn-lg">
+        🤝 CONTRIBUTE
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div>
+    <a href="https://github.com/YOUR_USERNAME/vulnshop" target="_blank">☠ VulnShop</a>
+    &nbsp;·&nbsp; MIT License &nbsp;·&nbsp; Inspired by
+    <a href="https://owasp.org/www-project-juice-shop/" target="_blank">OWASP Juice Shop</a>
+    &nbsp;·&nbsp; <span style="color:var(--red)">⚠ For educational use only</span>
+  </div>
+  <div class="footer-vulns">
+    <span class="fv">SQLi</span>
+    <span class="fv">XSS</span>
+    <span class="fv">IDOR</span>
+    <span class="fv">CSRF</span>
+    <span class="fv">PathTraversal</span>
+    <span class="fv">BrokenAuth</span>
+    <span class="fv">MassAssignment</span>
+    <span class="fv">OpenRedirect</span>
+  </div>
+</footer>
+
+<!-- ════════════════ JS ════════════════ -->
+<script>
+  /* ── Custom cursor ── */
+  const cursor = document.getElementById('cursor');
+  const ring   = document.getElementById('cursor-ring');
+  let mx = 0, my = 0, rx = 0, ry = 0;
+
+  document.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    cursor.style.transform = `translate(${mx - 6}px, ${my - 6}px)`;
+  });
+
+  (function animRing() {
+    rx += (mx - rx) * 0.12;
+    ry += (my - ry) *.12;
+    ring.style.transform = `translate(${rx - 18}px, ${ry - 18}px)`;
+    requestAnimationFrame(animRing);
+  })();
+
+  document.querySelectorAll('a, button').forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      cursor.style.transform += ' scale(1.5)';
+      ring.style.width = '52px';
+      ring.style.height = '52px';
+      ring.style.borderColor = 'rgba(0,229,255,0.8)';
+    });
+    el.addEventListener('mouseleave', () => {
+      ring.style.width = '36px';
+      ring.style.height = '36px';
+      ring.style.borderColor = 'rgba(0,229,255,0.4)';
+    });
+  });
+
+  /* ── Matrix rain ── */
+  (function() {
+    const canvas = document.getElementById('matrix-canvas');
+    const ctx = canvas.getContext('2d');
+    let W, H, cols, drops;
+    const chars = '01アイウエオカキクケコSQLXSSIDOR☠⚠FLAG{}';
+
+    function resize() {
+      W = canvas.width  = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+      cols = Math.floor(W / 16);
+      drops = Array(cols).fill(1);
+    }
+
+    function draw() {
+      ctx.fillStyle = 'rgba(4,8,13,0.05)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#00e5ff';
+      ctx.font = '13px monospace';
+      for (let i = 0; i < drops.length; i++) {
+        const c = chars[Math.floor(Math.random() * chars.length)];
+        ctx.fillText(c, i * 16, drops[i] * 16);
+        if (drops[i] * 16 > H && Math.random() > 0.975) drops[i] = 0;
+        drops[i]++;
+      }
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+    setInterval(draw, 55);
+  })();
+
+  /* ── Scroll reveal ── */
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        // stagger children
+        e.target.querySelectorAll('.vuln-card, .owasp-item, .step, .feature-item').forEach((el, i) => {
+          el.style.transitionDelay = `${i * 0.07}s`;
+          el.classList.add('reveal', 'visible');
+        });
+      }
+    });
+  }, { threshold: 0.08 });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  /* ── Copy code button ── */
+  function copyCode(btn) {
+    const pre = btn.closest('.code-block').querySelector('pre');
+    navigator.clipboard.writeText(pre.innerText).then(() => {
+      btn.textContent = 'COPIED!';
+      btn.style.color = '#39ff14';
+      setTimeout(() => { btn.textContent = 'COPY'; btn.style.color = ''; }, 2000);
+    });
+  }
+
+  /* ── Typing animation in terminal ── */
+  (function() {
+    const lines = document.querySelectorAll('#terminal-body > div');
+    lines.forEach((line, i) => {
+      line.style.opacity = '0';
+      setTimeout(() => {
+        line.style.opacity = '1';
+        line.style.transition = 'opacity 0.3s';
+      }, 800 + i * 160);
+    });
+  })();
+
+  /* ── Smooth nav highlight ── */
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.nav-links a');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => {
+      if (window.scrollY >= s.offsetTop - 100) current = s.id;
+    });
+    navLinks.forEach(a => {
+      a.style.color = a.getAttribute('href') === '#' + current ? 'var(--cyan)' : '';
+    });
+  }, { passive: true });
+</script>
+</body>
+</html>
